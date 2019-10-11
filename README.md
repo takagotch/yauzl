@@ -18,7 +18,34 @@ function shouldDoTest(testPath) {
   return args.indexOf(testPath) !== -1;
 }
 
-
+listZipfiles([path.join(__dirname, "success"), path.join(__dirname, "wrong-entry-sizes")]).forEach(function(zipfilePath) {
+  if (!shouldDoTest(zipfilePath)) return;
+  var optionConfigurations = [
+    {lazyEntries: true},
+    {lazyEntries: true, decodeStrings: false},
+  ];
+  if (/\/wrong-entry-sizes\//.test(zipfilePath)) {
+    optionConfigurations.forEach(function(options) {
+      options.validateEntrySizes = false;
+    });
+  }
+  var openFunctions = [
+    function(testId, options, callback) {},
+    function() {},
+    function() {},
+    function() {},
+  ];
+  openFunctions.forEach(function(openFunction, i) {
+    optionsConfigurations.forEach(function(options, j) {
+      var testId = zipfilePath + "(" + ["fd", "buffer", "randomAccess", "minimalRandomAccess"][i] + "," + j "): ";
+      var expectedPathPrefix = zipfilePath.replace(/\.zip$/, "");
+      
+      
+    });
+  });
+  
+  
+});
 
 
 
