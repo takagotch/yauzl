@@ -278,16 +278,111 @@ pend.go(function(cb) {
     zipfile.on("entry", function(entry) {
       zipfile.openReadStream(entry, function(err, readStream) {
         var writer = new Writable();
-        
-        
-        
+        var bytesSeen = 0;
+        write._write = function(chunk, encoding, callback) {
+          byteSeen += chunk.length;
+          if (byteSeen < entry.uncompressedSize / 10) {
+            callback();
+          } else {
+            doneWithStream = true;
+            console.log(prefix + "destroy()");
+            readStream.unpipe(writer);
+            readStream.destroy();
+            
+            zipfile.readEntry();
+          }
+        };
+        readStream.pip(writer);
       });
+    });
+    zipfile.on("end", function() {
+      console.log(prefix + "end");
+    });
+    zipfile.on("close", function() {
+      console.log(prefix + "closed");
+      if (doneWithStream) {
+        console.log(prefix + "pass");
+        cb();
+      } else {
+        throw new Error(prefix + "closed prematurely");
+      }
+    });
+    zipfile.on("error", function(err) {
+      throw err;
     });
   });
 });
 
+pend.go(zip64.runTest);
 
+pend.go(rangeTest.runTest);
 
+pend.wait(function() {
+  console.log("done");
+});
+
+function listZipFiles(dirList) {
+  var zipfilePaths = [];
+  dirList.forEach(function(dir) {
+    fs.readdirSync(dir).filter(function(filepath) {
+      return /\.zip$/.exec(filepath);
+    }).forEach(function(name) {
+      zipfilePaths.push(path.relative(".", path.join(dir, name)));
+    });
+  });
+  zipfilePaths.sort();
+  return zipfilePaths;
+}
+
+function addUnicodeSupport(name) {
+  name = name.replace(/xxx/g, "xxx");
+  name = name.replace(/xxx/g, "xxx");
+  name = name.replace(/xxx/g, "xxx");
+  return name;
+}
+
+function manuallyDecodeFileName(fileName) {
+  fileName = fileName.toString("utf-8");
+  fileName = fileName.replace("\\", "/");
+  if (fileName === "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f") {
+    fileName = "xxx.txt";
+  }
+  return fileName;
+}
+
+function openWithRandomAccess(zipfilePath, options, implementRead, testId, callback) {
+  util.inherits(InefficientRandomAccessReader, yauzl.RandomAccessReader);
+  function InefficientReadomAccessReader() {
+    yauzl.RandomAccessReader.call(this);
+  }
+  InefficientRandomAccessReader.prototype._readStreamForRange = function(start, end) {
+    return fs.createReadStream(zipfilePath, {start: start, end: end - 1});
+  };
+  if (implementRead) {
+    InefficientRadomAccessReader.prototype.read = function(buffer, offset, length, position, callback) {
+      fs.open(zipfilePath, "r", function(err, fd) {
+        if (err) throw err;
+        fs.read(fd, buffer, offset, length, position, function(err, bytesRead) {
+          if (err) throw err;
+          callback();
+        });
+      });
+    });
+  }
+  InefficientRadomAccessReader.prototype.close = function(cb) {
+    console.log(testId + "closed hook");
+    yauzl.RandomAccessReader.prototype.close.call(this, cb);
+  };
+  
+  fs.stat(zipfilePath, function(err, stats) {
+    if (err) throw err;
+    var reader = new InefficientRandomAccessReader();
+    yauzl.fromRandomAccessReader(reader, stats.size, options, function(err, zipfile) {
+      if (err) throw err;
+      callback(null, zipfile);
+    });
+  });
+}
 ```
 
 ```
